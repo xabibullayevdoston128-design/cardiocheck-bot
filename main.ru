@@ -1,150 +1,110 @@
-import logging
 import asyncio
-import os
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 
-# Переменные окружения (настройте их в Railway)
-TOKEN = os.getenv("8770551705:AAE_GYKdrx_r9ODaNNSVq1JskbqUnOyKgp0")
-ADMIN_ID = os.getenv("1874217603")
+# --- НАСТРОЙКИ ---
+TOKEN = "8395976496:AAFIWvIDNUcphfv5qOK_1OkPUuqmV0AqW9o"
+ADMIN_ID = 6818025340
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# Состояния опроса
-class Survey(StatesGroup):
-    waiting_for_agreement = State()
-    waiting_for_name = State()
-    waiting_for_phone = State()
-    answering_questions = State()
+class CardioSurvey(StatesGroup):
+    name = State()
+    questions = State()
 
-# Список вопросов (11 штук из вашего ТЗ)
 QUESTIONS = [
-    "Бывает ли у вас давление выше 140/90?",
-    "Бывают ли давящие боли за грудиной?",
-    "Чувствуете ли вы нехватку воздуха при ходьбе?",
-    "Есть ли у вас отеки ног?",
-    "Курите ли вы?",
-    "Есть ли у вас лишний вес?",
-    "Бывают ли приступы сильного сердцебиения?",
-    "Есть ли у близких родственников болезни сердца до 55 лет?",
-    "Страдаете ли вы сахарным диабетом?",
-    "Мало ли вы двигаетесь в течение дня?",
-    "Часто ли вы просыпаетесь ночью от удушья?"
+    "1. Беспокоит ли вас давящая боль за грудиной за последнее время?",
+    "2. Отдает ли боль в левую руку, плечо или челюсть в последние часы?",
+    "3. Появилась ли у вас сильная одышка в состоянии покоя?",
+    "4. Чувствуете ли вы перебои в работе сердца (замирание, резкие удары)?",
+    "5. Появилось ли чувство страха или паники за последнее время?",
+    "6. Было ли у вас резкое головокружение или потемнение в глазах?",
+    "7. Заметили ли вы появление холодного липкого пота в последние часы?",
+    "8. Беспокоит ли вас резкая слабость, мешающая встать, за последнее время?",
+    "9. Поднималось ли артериальное давление выше вашего привычного за сутки?",
+    "10. Появились ли отеки на ногах за последнее время?",
+    "11. Были ли у вас приступы потери сознания в последние 24 часа?",
+    "12. Беспокоит ли вас учащенное сердцебиение (более 100 ударов) в покое?",
+    "13. Усиливается ли боль в груди при физической нагрузке?",
+    "14. Проходит ли боль в груди после приема нитроглицерина или покоя?",
+    "15. Чувствуете ли вы тяжесть в груди, мешающую сделать полный вдох?"
 ]
-
-# Функция для определения категории риска
-def get_risk_category(score):
-    if 0 <= score <= 3:
-        return "🟢 **Низкий риск**", "Ваши показатели в пределах нормы. Продолжайте следить за здоровьем."
-    elif 4 <= score <= 7:
-        return "🟡 **Средний риск**", "**Рекомендуется плановый визит к врачу-кардиологу** для профилактического осмотра."
-    else:
-        return "🔴 **Высокий риск**", "**ВНИМАНИЕ: Рекомендуется срочное обращение к врачу!** Высокая вероятность сердечно-сосудистых осложнений."
-
-# Клавиатура Да/Нет
-def get_yes_no_kb():
-    return ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="Да"), KeyboardButton(text="Нет")]],
-        resize_keyboard=True,
-        one_time_keyboard=True
-    )
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message, state: FSMContext):
-    text = (
-        "❤️ **Добро пожаловать в систему кардиологического скрининга.**\n\n"
-        "⚠️ **ДИСКЛЕЙМЕР:** Данный бот не является врачом, не ставит диагноз и не назначает лечение. "
-        "Опрос лишь прогнозирует возможные риски на основе статистики.\n\n"
-        "Вы согласны начать тест?"
+    await state.clear()
+    await message.answer(
+        "<b>Добро пожаловать в Кардио-помощник.</b>\n\n"
+        "Этот опрос поможет оценить состояние вашей сердечно-сосудистой системы за последнее время.\n"
+        "Пожалуйста, введите ваши Имя и Фамилию:",
+        parse_mode="HTML"
     )
-    kb = ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="Согласен, начать тест")]],
-        resize_keyboard=True
-    )
-    await message.answer(text, reply_markup=kb, parse_mode="Markdown")
-    await state.set_state(Survey.waiting_for_agreement)
+    await state.set_state(CardioSurvey.name)
 
-@dp.message(Survey.waiting_for_agreement, F.text == "Согласен, начать тест")
-async def ask_name(message: types.Message, state: FSMContext):
-    await message.answer("Введите ваше ФИО:", reply_markup=ReplyKeyboardRemove())
-    await state.set_state(Survey.waiting_for_name)
-
-@dp.message(Survey.waiting_for_name)
-async def ask_phone(message: types.Message, state: FSMContext):
-    await state.update_data(full_name=message.text)
-    kb = ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="📞 Отправить мой номер телефона", request_contact=True)]],
-        resize_keyboard=True
-    )
-    await message.answer("Для регистрации нажмите кнопку ниже:", reply_markup=kb)
-    await state.set_state(Survey.waiting_for_phone)
-
-@dp.message(Survey.waiting_for_phone, F.contact)
-async def start_survey(message: types.Message, state: FSMContext):
-    # Сохраняем данные пользователя
-    await state.update_data(
-        phone=message.contact.phone_number, 
-        tg_id=message.from_user.id, 
-        username=f"@{message.from_user.username}" if message.from_user.username else "Нет username",
-        yes_count=0, 
-        current_q=0
-    )
+@dp.message(CardioSurvey.name)
+async def process_name(message: types.Message, state: FSMContext):
+    await state.update_data(user_name=message.text, q_idx=0, answers=[])
     
-    await message.answer("Начинаем опрос. Используйте кнопки для ответов.", reply_markup=get_yes_no_kb())
-    await message.answer(f"1. {QUESTIONS[0]}", reply_markup=get_yes_no_kb())
-    await state.set_state(Survey.answering_questions)
+    kb = ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="Да"), KeyboardButton(text="Нет")]],
+        resize_keyboard=True
+    )
+    await message.answer("Пожалуйста, отвечайте максимально точно на вопросы о вашем самочувствии за последние 24 часа.")
+    await asyncio.sleep(0.4) # Защита от скачков
+    await message.answer(QUESTIONS[0], reply_markup=kb)
+    await state.set_state(CardioSurvey.questions)
 
-@dp.message(Survey.answering_questions, F.text.in_(["Да", "Нет"]))
-async def process_questions(message: types.Message, state: FSMContext):
+@dp.message(CardioSurvey.questions)
+async def handle_questions(message: types.Message, state: FSMContext):
     data = await state.get_data()
-    current_q = data['current_q']
-    yes_count = data['yes_count']
+    if not data: return
     
-    if message.text == "Да":
-        yes_count += 1
+    idx = data['q_idx']
+    answers = data['answers']
     
-    current_q += 1
+    if message.text not in ["Да", "Нет"]:
+        return
+
+    answers.append(message.text)
+    idx += 1
+    await state.update_data(q_idx=idx, answers=answers)
     
-    if current_q < len(QUESTIONS):
-        await state.update_data(current_q=current_q, yes_count=yes_count)
-        await message.answer(f"{current_q + 1}. {QUESTIONS[current_q]}", reply_markup=get_yes_no_kb())
+    if idx < len(QUESTIONS):
+        await asyncio.sleep(0.2) # Стабилизация
+        await message.answer(QUESTIONS[idx])
     else:
-        # Этап 4: Обработка результата
-        category_title, recommendation = get_risk_category(yes_count)
+        # Критические индексы для кардиологии (боль, одышка, липкий пот, потеря сознания)
+        crit_idx = [0, 1, 2, 6, 7, 10]
+        is_crit = any(answers[i] == "Да" for i in crit_idx)
         
-        # Ответ пользователю
-        await message.answer(
-            f"**Тест завершен.**\n\nРезультат: {category_title}\n\n{recommendation}",
-            reply_markup=ReplyKeyboardRemove(),
-            parse_mode="Markdown"
-        )
-        
-        # Этап 5: Уведомление администратора
-        admin_text = (
-            f"📥 **НОВАЯ ЗАЯВКА**\n"
-            f"👤 **ФИО:** {data['full_name']}\n"
-            f"📞 **Телефон:** [{data['phone']}](tel:{data['phone']})\n"
-            f"🆔 **ID:** `{data['tg_id']}`\n"
-            f"🔗 **Профиль:** {data['username']}\n\n"
-            f"📊 **Результат:** {yes_count} из 11\n"
-            f"⚠️ **Категория:** {category_title}"
-        )
-        
-        if ADMIN_ID:
-            try:
-                await bot.send_message(ADMIN_ID, admin_text, parse_mode="Markdown")
-            except Exception as e:
-                logging.error(f"Ошибка отправки админу: {e}")
+        if is_crit:
+            res = "🚨 <b>ВНИМАНИЕ: Срочно вызывайте скорую помощь (103)!</b>\n\nВаши симптомы могут указывать на прединфарктное состояние или острый коронарный синдром."
+        else:
+            res = "✅ Ваше состояние сейчас не оценивается как экстренное. Однако рекомендуем планово обратиться к кардиологу для обследования."
             
+        await message.answer(res, parse_mode="HTML", reply_markup=ReplyKeyboardRemove())
+        
+        # ОТЧЕТ ТЕБЕ (САРДОРУ)
+        user_info = (
+            f"🫀 <b>КАРДИО-ОТЧЕТ</b>\n\n"
+            f"👤 <b>ФИО:</b> {data['user_name']}\n"
+            f"🆔 <b>ID:</b> <code>{message.from_user.id}</code>\n"
+            f"🔗 <b>Username:</b> @{message.from_user.username if message.from_user.username else 'нет'}\n"
+            f"🚨 <b>Критично:</b> {'ДА' if is_crit else 'НЕТ'}"
+        )
+        
+        try:
+            await bot.send_message(ADMIN_ID, user_info, parse_mode="HTML")
+        except: pass
         await state.clear()
 
 async def main():
+    await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
     asyncio.run(main())
